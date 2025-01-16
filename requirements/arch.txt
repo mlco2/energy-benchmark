@@ -1,0 +1,4 @@
+python-pynvml # aur
+raplcap # aur
+powercap # aur
+nvtop

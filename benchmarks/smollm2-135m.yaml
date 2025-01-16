@@ -1,0 +1,5 @@
+runs:
+  - model: HuggingFaceTB/SmolLM2-135M
+    count: 100
+  - model: HuggingFaceTB/SmolLM2-360M
+    count: 100

@@ -1,0 +1,3 @@
+runs:
+  - model: microsoft/phi-4
+    count: 100

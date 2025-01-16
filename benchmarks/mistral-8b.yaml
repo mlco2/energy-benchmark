@@ -1,0 +1,3 @@
+runs:
+  - model: mistralai/Ministral-8B-Instruct-2410
+    count: 1000
