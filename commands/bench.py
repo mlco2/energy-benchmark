@@ -23,7 +23,7 @@ from codecarbon import EmissionsTracker
 from codecarbon.output_methods.base_output import BaseOutput, EmissionsData
 
 NUM_INFERENCES = 10
-
+DEFAULT_PROMPT = "Why is the sky blue?"
 
 def cli():
     pass
@@ -147,13 +147,24 @@ def llamacpp(model: str):
     """
     runs llama.cpp on model ;
     """
-    # check if model is gguf file or hf model
-    modelfile = ""
+    # TODO: check if model is gguf file or hf model
+
     tracker = get_tracker()
     tracker.start()
     baseline(tracker)
+
+    # load model
+    import llama_cpp
+    model = llama_cpp.Llama(
+        model_path=model,
+    )
     pre_bench_hook()
-    os.system(f"llama-bench -m {modelfile}")
+
+    # inference
+    for i in range(NUM_INFERENCES):
+        res = model(DEFAULT_PROMPT,
+        )
+
     post_bench_hook()
     baseline(tracker)
     tracker.stop()
@@ -175,7 +186,7 @@ def ollama(model: str):
     # load model
     requests.post(
         f"http://{OLLAMA_HOST}/api/generate",
-        json={"model": model, "prompt": "Why is the sky blue?"},
+        json={"model": model, "prompt": "-"},
     )
     pre_bench_hook()
     # tracker.stop()
@@ -187,7 +198,7 @@ def ollama(model: str):
             f"http://{OLLAMA_HOST}/api/generate",
             json={
                 "model": model,
-                "prompt": "Why is the sky blue?",
+                "prompt": DEFAULT_PROMPT,
                 "stream": False,
                 "options": {
                     "num_predict": 10_000,  # set a limit
