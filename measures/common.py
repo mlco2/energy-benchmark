@@ -1,5 +1,4 @@
 from abc import ABC
 
 
-class BaseMeasure(ABC):
-    ...
+class BaseMeasure(ABC): ...

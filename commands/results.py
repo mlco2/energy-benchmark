@@ -1,16 +1,21 @@
 """
 Tools to parse and analyze json files generated
 """
-import os
-from click_aliases import ClickAliasedGroup
-import click
-from typing import List, Optional
-import numpy as np
-import json
+
 import datetime
+import json
+import os
+import pathlib
+from typing import List, Optional
+
+import click
+import numpy as np
+from click_aliases import ClickAliasedGroup
+
 
 def cli():
     pass
+
 
 cli.__doc__ = __doc__
 cli = click.group(cls=ClickAliasedGroup)(cli)
@@ -27,20 +32,26 @@ def get_power(line):
 
 def get_power_tasmota(line):
     try:
-        return line["tasmota"]["data"]["Power"]        
+        return line["tasmota"]["data"]["Power"]
     except:
         return 0
 
 
+def get_metadata(filename: str):
+    with open(pathlib.Path(filename).with_suffix(".meta.json")) as f:
+        return json.load(f)
+
 def _parse_results(filename: str):
     lines = []
+    context = get_metadata(filename)
+    
     with open(filename) as f:
         for line in f.readlines():
             lines.append(json.loads(line))
 
     timeline_data = [
         (
-            datetime.datetime.fromisoformat(l["timestamp"]), 
+            datetime.datetime.fromisoformat(l["timestamp"]),
             l.get("step", ""),
             get_power(l),
             get_power_tasmota(l),
@@ -54,29 +65,35 @@ def _parse_results(filename: str):
     other_data = [x for x in timeline_data if x[1] == ""]
 
     # get average baseline power
-    baseline_power = sum([get_power(x) for x in baseline_data])/len(baseline_data)
+    baseline_power = sum([get_power(x) for x in baseline_data]) / len(baseline_data)
 
     # inference duration
-    inference_start = datetime.datetime.fromisoformat([l for l in lines if l["message"] ==  'Starting tracker [inference]'][0]["timestamp"])
-    inference_stop = datetime.datetime.fromisoformat([l for l in lines if l["message"] ==  'Benchmarking finished'][0]["timestamp"])
-    inference_duration_s = (inference_stop-inference_start).total_seconds()
+    inference_start = datetime.datetime.fromisoformat(
+        [l for l in lines if l["message"] == "Starting tracker [inference]"][0][
+            "timestamp"
+        ]
+    )
+    inference_stop = datetime.datetime.fromisoformat(
+        [l for l in lines if l["message"] == "Benchmarking finished"][0]["timestamp"]
+    )
+    inference_duration_s = (inference_stop - inference_start).total_seconds()
     print(f"{inference_duration_s=}")
 
     # power use during inference
     inference_data = [get_power(l) for l in lines if l.get("step") == "benchmark"]
-    inference_power = sum(inference_data)/len(inference_data)
+    inference_power = sum(inference_data) / len(inference_data)
     print(f"{inference_power=}")
 
     # energy use
-    energy_use = ( inference_power - baseline_power ) * inference_duration_s
+    energy_use = (inference_power - baseline_power) * inference_duration_s
     print(f"{energy_use=} J")
 
     # per inference
-    num_inferences =  [l for l in lines if l.get("step") == "baseline"][0]["context"]["num_inferences"]
+    num_inferences = context["num_inferences"]
     print(f"=> {energy_use/num_inferences=} J per inference")
 
     # per token
-    num_tokens =  [l for l in lines if l.get("step") == "baseline"][-1]["context"]["total_tokens"]
+    num_tokens = context["total_tokens"]
     print(f"=> {energy_use/num_tokens=} J per token")
 
     # tokens per second
@@ -84,14 +101,15 @@ def _parse_results(filename: str):
 
     return {
         "energy": energy_use,
-        "energy_per_token": energy_use/num_tokens,
-        "energy_per_inference": energy_use/num_inferences,
+        "energy_per_token": energy_use / num_tokens,
+        "energy_per_inference": energy_use / num_inferences,
         "inference_time": inference_duration_s,
         "num_tokens": num_tokens,
         "num_inferences": num_inferences,
     }
 
-@click.argument('filename', type=str)
+
+@click.argument("filename", type=str)
 @cli.command()
 def parse_results(filename):
     """
@@ -99,5 +117,3 @@ def parse_results(filename):
     """
     results = _parse_results(filename)
     print(json.dumps(results, indent=4))
-
-

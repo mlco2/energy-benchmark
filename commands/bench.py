@@ -5,25 +5,29 @@ The hooks are meant to measure free RAM and energy usage
 before/after model load and during inference.
 """
 
-import os
-import time
-from click_aliases import ClickAliasedGroup
-import click
 import datetime
 import itertools
-from typing import List, Optional
-from commands import machine
-from utils.logging import logger
-import requests
-import pynvml
-import subprocess
-import yaml
+import json
+import os
+import pathlib
 import platform
+import subprocess
+import time
+import click
+import pynvml
+import requests
+import yaml
+from click_aliases import ClickAliasedGroup
+from typing import List, Optional
+
 from codecarbon import EmissionsTracker
 from codecarbon.output_methods.base_output import BaseOutput, EmissionsData
+from commands import machine
+from utils.logging import logger
 
 NUM_INFERENCES = 10
 DEFAULT_PROMPT = "Why is the sky blue?"
+
 
 def cli():
     pass
@@ -56,6 +60,8 @@ class MeasuresOutputHandler(BaseOutput):
         if self._init:
             return
         self._init = True
+        self.workdir = pathlib.Path(".")
+        self.filename = f"events"
 
         self.step = ""
         self.context = {
@@ -63,12 +69,19 @@ class MeasuresOutputHandler(BaseOutput):
             "hostname": platform.node(),
         }
 
+    def write_metadata(self):
+        """
+        write metadata to json file
+        """
+        with open(self.workdir / f"{self.filename}.meta.json", "w") as f:
+            json.dump(self.context, f)
+
     def live_out(self, total: EmissionsData, delta: EmissionsData):
         # logger.info({"message": "OutputHandler.Live out"})
         # logger.info({"total": total.__dict__, "delta": delta.__dict__})
         data = {
             "message": "all measures",
-            "context": self.context,
+            # "context": self.context,
             "step": self.step,
             "codecarbon": {"total": total.__dict__, "delta": delta.__dict__},
         }
@@ -128,6 +141,7 @@ def post_bench_hook():
     MeasuresOutputHandler().step = ""
     logger.info(machine._ram())
     logger.info(get_measures())
+    MeasuresOutputHandler().write_metadata()
     logger.info("Benchmarking finished")
 
 
@@ -141,12 +155,7 @@ def baseline(tracker):
     MeasuresOutputHandler().step = ""
 
 
-@click.argument("model")
-@cli.command()
-def llamacpp(model: str):
-    """
-    runs llama.cpp on model ;
-    """
+def _llamacpp(model: str):
     # TODO: check if model is gguf file or hf model
 
     tracker = get_tracker()
@@ -155,6 +164,7 @@ def llamacpp(model: str):
 
     # load model
     import llama_cpp
+
     model = llama_cpp.Llama(
         model_path=model,
     )
@@ -162,12 +172,22 @@ def llamacpp(model: str):
 
     # inference
     for i in range(NUM_INFERENCES):
-        res = model(DEFAULT_PROMPT,
+        res = model(
+            DEFAULT_PROMPT,
         )
 
     post_bench_hook()
     baseline(tracker)
     tracker.stop()
+
+
+@click.argument("model")
+@cli.command()
+def llamacpp(model: str):
+    """
+    runs llama.cpp on model ;
+    """
+    _llamacpp(model)
 
 
 @click.argument("model")
@@ -246,7 +266,6 @@ def torch(model_name: str):
 def _torch(model_name: str, num_inferences=NUM_INFERENCES):
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
-    import sys
 
     tracker = get_tracker()
     tracker.start()
@@ -333,7 +352,6 @@ def run(config_file: str, runner: str):
     import utils.logging
 
     utils.logging.logHandler
-    import pathlib
 
     with open(pathlib.Path(config_file), "r") as file:
         bench_config = yaml.safe_load(file)
@@ -348,10 +366,14 @@ def run(config_file: str, runner: str):
         log_path = (pathlib.Path(".") / f"bench-{bench_name}-{idx}.jsonl").resolve()
         # utils.logging.logHandler.baseFilename = log_path
         utils.logging.set_file(log_path)
-
+        MeasuresOutputHandler().workdir = pathlib.Path(".")
+        MeasuresOutputHandler().filename = f"bench-{bench_name}-{idx}"
         MeasuresOutputHandler().context["model"] = model = run["model"]
         MeasuresOutputHandler().context["num_inferences"] = count = run["count"]
+
         if runner == "torch":
             _torch(model_name=model, num_inferences=count)
+        if runner == "llamacpp":
+            _llamacpp(model_name=model, num_inferences=count)
         else:
             raise Exception("Only torch runner is supported")

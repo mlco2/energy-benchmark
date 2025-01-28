@@ -2,22 +2,26 @@
 Tools to manage model (download/convert)
 
 """
-import os
-from click_aliases import ClickAliasedGroup
-import click
+
 import datetime
 import itertools
+import os
 from typing import List, Optional
+
+import click
+from click_aliases import ClickAliasedGroup
+
 
 def cli():
     pass
+
 
 cli.__doc__ = __doc__
 cli = click.group(cls=ClickAliasedGroup)(cli)
 #######################################################################
 
 
-@click.argument('model', type=str)
+@click.argument("model", type=str)
 @cli.command()
 def get_model(model):
     """
