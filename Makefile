@@ -2,9 +2,12 @@
 
 
 clean:
-	rm emissions.csv events.jsonl
+	rm emissions.csv *.json *.jsonl
 
 torch:
+	./cli.py bench torch HuggingFaceTB/SmolLM2-135M
+
+llamacpp:
 	./cli.py bench torch HuggingFaceTB/SmolLM2-135M
 
 ollama:
@@ -12,3 +15,6 @@ ollama:
 
 graph:
 	echo "Open notebooks/parse_data.ipynb with jupyter"
+
+bench:
+	./cli.py bench run benchmarks/test2.yaml llamacpp

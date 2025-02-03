@@ -2,6 +2,9 @@
 Measure using a tasmota smart plug
 https://tasmota.github.io/docs/
 ex: https://www.mylocalbytes.com/en-eu/products/smart-plug-pm?variant=41600621543615
+
+TODO: the data should derive from a generic model, to allow compatibility with other devices
+=> energy_benchmark.models.DataPoint
 """
 
 import datetime
@@ -44,9 +47,12 @@ class Measure(BaseMeasure):
     def get_measure(self):
         response = requests.get(f"{self.url}/cm", params={"cmnd": "STATUS+10"}).json()
         data = TasmotaResponse(**response)
+
         return {
-            # "raw": response,
-            "data": {
+            "power": data.StatusSNS.ENERGY.Power,
+            "timestamp": data.StatusSNS.Time.isoformat(),
+            "source": self.name,
+            "raw": {
                 **data.StatusSNS.ENERGY.model_dump(),
                 "timestamp": data.StatusSNS.Time.isoformat(),
                 "TotalStartTime": data.StatusSNS.ENERGY.TotalStartTime.isoformat(),

@@ -1,0 +1,8 @@
+runs:
+  - model: HuggingFaceTB/SmolLM2-360M-Instruct-GGUF
+  # - model: HuggingFaceTB/SmolLM2-360M-Instruct-GGUF
+    filename: "*q8_0.gguf"
+    count: 100
+  - model: Qwen/Qwen2-0.5B-Instruct-GGUF
+    filename: "*q8_0.gguf"
+    count: 100

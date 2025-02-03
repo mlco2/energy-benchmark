@@ -46,4 +46,10 @@ Useful folders:
 - /build: this app
 
 
+# settings
+Some settings can be set using a .env file or env vars.
+
+- LLAMA_CPP_LOAD_OPTIONS: json providing additional options to `from_pretrained`
+  ex: '{"n_gpu_layers":30,"n_threads":"1","n_batch":1}'
+
 # links

@@ -24,6 +24,7 @@ from codecarbon import EmissionsTracker
 from codecarbon.output_methods.base_output import BaseOutput, EmissionsData
 from commands import machine
 from utils.logging import logger
+from energy_benchmark.settings import settings
 
 NUM_INFERENCES = 10
 DEFAULT_PROMPT = "Why is the sky blue?"
@@ -67,6 +68,7 @@ class MeasuresOutputHandler(BaseOutput):
         self.context = {
             "num_inferences": NUM_INFERENCES,
             "hostname": platform.node(),
+            "settings": settings.model_dump(),
         }
 
     def write_metadata(self):
@@ -124,7 +126,10 @@ measure = measures[0]
 
 def pre_bench_hook():
     logger.info("Starting benchmark")
-    pynvml.nvmlInit()
+    try:
+        pynvml.nvmlInit()
+    except:
+        ...
     logger.info(machine._ram())
     logger.info(get_measures())
     MeasuresOutputHandler().step = "benchmark"
@@ -155,7 +160,12 @@ def baseline(tracker):
     MeasuresOutputHandler().step = ""
 
 
-def _llamacpp(model: str):
+def _llamacpp(*, 
+              model: str = None,
+              repo_id: str = None,
+              filename: str = None,
+              num_inferences=NUM_INFERENCES
+              ):
     # TODO: check if model is gguf file or hf model
 
     tracker = get_tracker()
@@ -165,9 +175,23 @@ def _llamacpp(model: str):
     # load model
     import llama_cpp
 
-    model = llama_cpp.Llama(
-        model_path=model,
-    )
+
+    if model:
+        model = llama_cpp.Llama(
+            **settings.llama_cpp_load_options,
+            model_path=model
+        )
+    elif repo_id:
+        model = llama_cpp.Llama.from_pretrained(
+            **settings.llama_cpp_load_options,
+            repo_id=repo_id,
+            filename=filename,
+        )    
+    else: 
+        raise Exception("No model specified")
+    
+    MeasuresOutputHandler().context["n_gpu_layers"] = model.model_params.n_gpu_layers
+
     pre_bench_hook()
 
     # inference
@@ -274,12 +298,15 @@ def _torch(model_name: str, num_inferences=NUM_INFERENCES):
     baseline(tracker)
 
     def print_gpu_usage(gpu_id):
-        print(
-            f">>>> GPU memoy: {pynvml.nvmlDeviceGetMemoryInfo(gpu_device).used / 1024**3:.2f} GB on {gpu_mem} GB"
-        )
-        print(
-            f">>>> GPU usage: Load {pynvml.nvmlDeviceGetUtilizationRates(gpu_device).gpu} %, memory {pynvml.nvmlDeviceGetUtilizationRates(gpu_device).memory} %"
-        )
+        try:
+            print(
+                f">>>> GPU memoy: {pynvml.nvmlDeviceGetMemoryInfo(gpu_device).used / 1024**3:.2f} GB on {gpu_mem} GB"
+            )
+            print(
+                f">>>> GPU usage: Load {pynvml.nvmlDeviceGetUtilizationRates(gpu_device).gpu} %, memory {pynvml.nvmlDeviceGetUtilizationRates(gpu_device).memory} %"
+            )
+        except:
+            ...
 
     # logging_logger
     # output_handlers
@@ -374,6 +401,6 @@ def run(config_file: str, runner: str):
         if runner == "torch":
             _torch(model_name=model, num_inferences=count)
         if runner == "llamacpp":
-            _llamacpp(model_name=model, num_inferences=count)
+            _llamacpp(repo_id=model, filename=run["filename"],  num_inferences=count)
         else:
             raise Exception("Only torch runner is supported")
