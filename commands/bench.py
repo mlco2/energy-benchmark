@@ -175,6 +175,7 @@ def _llamacpp(*,
     # load model
     import llama_cpp
 
+    logger.info("Starting tracker [loading]")
 
     if model:
         model = llama_cpp.Llama(
@@ -188,9 +189,18 @@ def _llamacpp(*,
             filename=filename,
         )    
     else: 
-        raise Exception("No model specified")
-    
+        raise Exception("No model specified")    
     MeasuresOutputHandler().context["n_gpu_layers"] = model.model_params.n_gpu_layers
+
+    # Load pre-trained model and tokenizer
+    MeasuresOutputHandler().step = "loading"
+    post_model_load_hook()
+
+    logger.info("Starting tracker [inference]")
+    MeasuresOutputHandler().step = "benchmark"
+    # Generate text
+    generated_text = []
+    MeasuresOutputHandler().context["total_tokens"] = 0  
 
     pre_bench_hook()
 
@@ -199,10 +209,15 @@ def _llamacpp(*,
         res = model(
             DEFAULT_PROMPT,
         )
+        num_tokens = res["usage"]["completion_tokens"]
+        MeasuresOutputHandler().context["total_tokens"] += num_tokens
 
+    
+    logger.info("Tracker stopped")
     post_bench_hook()
     baseline(tracker)
     tracker.stop()
+    
 
 
 @click.argument("model")
@@ -334,7 +349,6 @@ def _torch(model_name: str, num_inferences=NUM_INFERENCES):
     post_model_load_hook()
 
     # tracker.stop()
-    logger.info("Tracker stopper")
     logger.info("Starting tracker [inference]")
     # tracker.start()
     MeasuresOutputHandler().step = "benchmark"
@@ -357,7 +371,7 @@ def _torch(model_name: str, num_inferences=NUM_INFERENCES):
 
     # Stop tracking
     # tracker.stop()
-    logger.info("Tracker stopper")
+    logger.info("Tracker stopped")
 
     print("=" * 30)
     print(generated_text[-1])

@@ -45,7 +45,7 @@ def _parse_results(filename: str):
     lines = []
     context = get_metadata(filename)
     
-    with open(filename) as f:
+    with open(pathlib.Path(filename).with_suffix(".jsonl")) as f:        
         for line in f.readlines():
             lines.append(json.loads(line))
 
