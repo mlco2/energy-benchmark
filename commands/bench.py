@@ -38,9 +38,9 @@ cli.__doc__ = __doc__
 cli = click.group(cls=ClickAliasedGroup)(cli)
 #######################################################################
 
-from measures import tasmota
+from measures import tasmota, pirad
 
-measures = [tasmota.Measure()]
+measures = [tasmota.Measure(), pirad.Measure()]
 
 
 class MeasuresOutputHandler(BaseOutput):
@@ -130,21 +130,30 @@ def pre_bench_hook():
         pynvml.nvmlInit()
     except:
         ...
-    logger.info(machine._ram())
+    try:
+        logger.info(machine._ram())
+    except:
+        ...
     logger.info(get_measures())
     MeasuresOutputHandler().step = "benchmark"
 
 
 def post_model_load_hook():
     logger.info("Model loaded")
-    logger.info(machine._ram())
+    try:
+        logger.info(machine._ram())
+    except:
+        ...
     logger.info(get_measures())
     MeasuresOutputHandler().step = ""
 
 
 def post_bench_hook():
     MeasuresOutputHandler().step = ""
-    logger.info(machine._ram())
+    try:
+        logger.info(machine._ram())
+    except:
+        ...
     logger.info(get_measures())
     MeasuresOutputHandler().write_metadata()
     logger.info("Benchmarking finished")
@@ -200,7 +209,7 @@ def _llamacpp(*,
     MeasuresOutputHandler().step = "benchmark"
     # Generate text
     generated_text = []
-    MeasuresOutputHandler().context["total_tokens"] = 0  
+    MeasuresOutputHandler().context["total_tokens"] = 0
 
     pre_bench_hook()
 
@@ -212,7 +221,6 @@ def _llamacpp(*,
         num_tokens = res["usage"]["completion_tokens"]
         MeasuresOutputHandler().context["total_tokens"] += num_tokens
 
-    
     logger.info("Tracker stopped")
     post_bench_hook()
     baseline(tracker)

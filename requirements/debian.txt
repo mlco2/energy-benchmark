@@ -1,0 +1,3 @@
+gpustat
+python3-pynvml
+libdrm-dev # for pyamdgpuinfo

@@ -21,13 +21,14 @@ torch = { version = "^2.5.1", optional = true}
 transformers = { version = "^4.47.1", optional = true}
 llama-cpp-python = { version = "^0.3.6", optional = true}
 matplotlib = "^3.10.0"
+pyamdgpuinfo = "*"
 
 [tool.poetry.extras]
 download = ["huggingface-hub"]
 measure = ["codecarbon", "pynvml"]
 llm = ["torch", "transformers"]
 llamacpp = ["llama-cpp-python"]
-
+amd = ["pyamdgpuinfo"]
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
