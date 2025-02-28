@@ -1,0 +1,114 @@
+name: Build and publish images manually
+
+on:
+  workflow_dispatch:
+    inputs:
+      path_to_dockerfile:
+        description: Path to the dockerfile
+        default: "docker/Dockerfile"
+        type: string
+      image_tag:
+        description: Tag to apply to images
+        type: string
+        default: latest
+      aws_account_id:
+        description: AWS Account ID
+        type: string
+        required: true
+        default: "992382637587"
+      ecr_repo_name:
+        description: ECR Repository Name
+        required: true
+        default: "pruna-rd-energy-benchmark"
+        type: string
+
+concurrency: ci-${{ github.repository }}-docker-pipeline
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Now checkout the internal (private) repository in a subdirectory
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+          # Add github.com to known_hosts to avoid host authenticity prompts
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+          # Start the ssh-agent and add our key
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/id_rsa
+          
+          # Make SSH_AUTH_SOCK available to future steps
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Set multiple deployment variables based on branch
+        id: setup-vars
+        run: |
+          ENV="${{ vars.ENV }}"
+          AWS_REGION="us-east-1"
+
+          echo "ENV=$ENV" >> $GITHUB_OUTPUT
+          echo "AWS_REGION=$AWS_REGION" >> $GITHUB_OUTPUT
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ github.event.inputs.aws_account_id }}:role/github-action
+          role-session-name: github-session
+          aws-region: ${{ steps.setup-vars.outputs.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registries: ${{ github.event.inputs.aws_account_id }}
+
+      - name: Build and push Docker image
+        id: build-publish
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ github.event.inputs.ecr_repo_name }}
+          IMAGE_TAG: ${{ github.event.inputs.image_tag }}
+          SSH_AUTH_SOCK: ${{ env.SSH_AUTH_SOCK }}
+
+        run: |
+          # Enable buildkit to share the ssh key with host
+          export DOCKER_BUILDKIT=1
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/id_rsa
+
+          docker build -f "${{ github.event.inputs.path_to_dockerfile }}" \
+            --cache-from "$ECR_REGISTRY/$ECR_REPOSITORY:latest" \
+            --ssh default \
+            -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" .
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          echo "IMAGE $IMAGE_TAG is pushed to $ECR_REGISTRY/$ECR_REPOSITORY"
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "full_image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+    outputs:
+      image_tag: ${{ steps.build-publish.outputs.image_tag }}
+      full_image: ${{ steps.build-publish.outputs.full_image }}
+      region: ${{ steps.build-publish.outputs.region }}
+
+  summary:
+    needs: docker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Summarize build
+        run: |
+          echo "Images built and pushed:"
+          echo "${{ needs.docker.outputs.full_image }}"
+          echo "Tag: ${{ needs.docker.outputs.image_tag }}"
