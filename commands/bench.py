@@ -38,10 +38,9 @@ cli.__doc__ = __doc__
 cli = click.group(cls=ClickAliasedGroup)(cli)
 #######################################################################
 
-from measures import tasmota, pirad
-
-measures = [tasmota.Measure(), pirad.Measure()]
-
+# from measures import tasmota, pirad
+# measures = [tasmota.Measure(), pirad.Measure()]
+measures = []
 
 class MeasuresOutputHandler(BaseOutput):
     """
@@ -119,9 +118,6 @@ def get_measures():
     for measure in measures:
         data[measure.name] = measure.get_measure()
     return data
-
-
-measure = measures[0]
 
 
 def pre_bench_hook():
