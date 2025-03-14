@@ -33,18 +33,23 @@ To run a complete set from a yaml file:
 ```
 
 # using docker
-To get a shell in a container:
+You can use the cli script to get a shell in a container or run a task in docker:
 ```
 ./cli.py docker build
-./cli.py docker run
+./cli.py docker shell
 cd /build
 poetry run ./cli.py bench torch HuggingFaceTB/SmolLM2-135M
+```
+Or to run a command: 
+```
+/cli.py docker bench torch HuggingFaceTB/SmolLM2-135M
 ```
 
 Useful folders:
 - /app: llama.cpp
 - /build: this app
 
+You can also run the container directly. See commands/docker.py for an example with cuda and powercap.
 
 # settings
 Some settings can be set using a .env file or env vars.
